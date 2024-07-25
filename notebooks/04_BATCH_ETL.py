@@ -1,5 +1,5 @@
 # Databricks notebook source
-# MAGIC %pip install -U openai pandas dbtunnel[gradio] dspy-ai pydantic
+# MAGIC %pip install -U openai pandas dspy-ai pydantic
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -9,7 +9,7 @@
 # COMMAND ----------
 
 from auto_topic.domains import DomainConfigTable
-from auto_topic.sentiment import get_analyzer, enable_arize_tracing, get_valid_responses_for_categories
+from auto_topic.sentiment import get_analyzer, enable_arize_tracing, get_valid_responses_for_categories, get_when_to_use_category
 import pandas as pd
 
 # COMMAND ----------
@@ -18,7 +18,6 @@ dct = DomainConfigTable.from_table(spark, catalog=CATALOG, schema=SCHEMA, table=
 
 # COMMAND ----------
 
-import dspy
 TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
 topics_df = pd.DataFrame([topic.to_kwargs() for topic in dct.topics])
 
@@ -38,11 +37,11 @@ from typing import Iterator, Tuple
 def extract_domain_details(feedback_and_ratings: Iterator[Tuple[pd.Series, pd.Series]]) -> Iterator[pd.Series]:
     # Do some expensive initialization with a state
     language_model = dspy.OpenAI(
-        model='databricks-meta-llama-3-70b-instruct', # model='databricks-dbrx-instruct',
+        model=MODEL_ID, # model='databricks-dbrx-instruct',
         max_tokens=500,
         temperature=0.1,
         api_key=TOKEN,
-        api_base="https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/"
+        api_base=f"{WORKSPACE_URL}/serving-endpoints/"
     )
     extract = get_analyzer(topics_df, language_model)
     for feedback_arr, rating_arr in feedback_and_ratings:
@@ -65,23 +64,25 @@ def extract_domain_details(feedback_and_ratings: Iterator[Tuple[pd.Series, pd.Se
 
 reviews = spark.table(f"{CATALOG}.{SCHEMA}.{REVIEWS_TABLE}")
 reviews.display()
-reviews = reviews.limit(1)
+reviews = reviews.limit(2)
 
 # COMMAND ----------
-
-# write target table
 
 reviews = reviews.withColumn("analysis", extract_domain_details("review", "rating"))
 reviews.display()
 
 # COMMAND ----------
 
+spark.sql(f"DROP TABLE IF EXISTS {CATALOG}.{SCHEMA}.{TARGET_TABLE}")
+
+# COMMAND ----------
+
+#  REMOVE LIMIT 10
 if spark.catalog.tableExists(f"{CATALOG}.{SCHEMA}.{TARGET_TABLE}") is False:
     print(f"Creating Target Table: {CATALOG}.{SCHEMA}.{TARGET_TABLE}")
-    # todo remove limit 10
     spark.sql(f"""
               SELECT *, cast(null as string) as analysis FROM {CATALOG}.{SCHEMA}.{REVIEWS_TABLE}
-              limit 10
+               LIMIT 10 
               """).write.format("delta").mode("overwrite").saveAsTable(f"{CATALOG}.{SCHEMA}.{TARGET_TABLE}")
 else:
     print(f"Table: {CATALOG}.{SCHEMA}.{TARGET_TABLE} already exists!")
@@ -104,7 +105,6 @@ records = spark.sql(f"SELECT *, cast(null as string) as analysis FROM {CATALOG}.
 target_table.alias("target").merge(
     source=records.alias("source"),
     condition="target.review_id = source.review_id",
-
 ).whenNotMatchedInsertAll().execute()
 
 # COMMAND ----------
@@ -116,7 +116,6 @@ target_table.alias("target").merge(
 
 from delta.tables import DeltaTable
 
-BATCH_SIZE = 5
 
 def get_unanalyzed_records(spark, batch_size = None):
     if batch_size is None:
@@ -124,7 +123,7 @@ def get_unanalyzed_records(spark, batch_size = None):
     else:
         return spark.table(f"{CATALOG}.{SCHEMA}.{TARGET_TABLE}").where("analysis is null").limit(batch_size)
 
-unanalyzed_records = get_unanalyzed_records(spark, BATCH_SIZE)
+unanalyzed_records = get_unanalyzed_records(spark, BATCH_ETL_BATCH_SIZE)
 unanalyzed_records_ct = unanalyzed_records.count()
 unanalyzed_records_ct
 batch_ct = 1
@@ -138,7 +137,7 @@ while unanalyzed_records_ct > 0:
     ).whenMatchedUpdateAll().execute()
 
     # fetch new batch
-    unanalyzed_records = get_unanalyzed_records(spark, BATCH_SIZE)
+    unanalyzed_records = get_unanalyzed_records(spark, BATCH_ETL_BATCH_SIZE)
     unanalyzed_records_ct = unanalyzed_records.count()
     batch_ct += 1
 
@@ -148,7 +147,8 @@ while unanalyzed_records_ct > 0:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions;
+# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions
+# MAGIC WHERE analysis is not null;
 
 # COMMAND ----------
 

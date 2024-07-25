@@ -8,13 +8,13 @@ from openai import BaseModel
 from pydantic import Field, create_model
 
 
-def enable_arize_tracing():
+def enable_arize_tracing(model_id="domainextract"):
     from arize_otel import register_otel, Endpoints
 
     # Setup OTEL via our convenience function
     register_otel(
         endpoints = Endpoints.PHOENIX_LOCAL,
-        model_id = "juan", # name this to whatever you would like
+        model_id = model_id, # name this to whatever you would like
     )
 
     # Import the automatic instrumentor from OpenInference
@@ -35,28 +35,45 @@ def get_when_to_use_category(df: pd.DataFrame):
     return {row['topic'].lower()+"details": row['when'].format(topic=row['topic'].lower()+"details") for row in rows}
   
 
-def get_analyzer(df: pd.DataFrame, language_model):
+class DefaultCatchAllDetails(BaseModel):
+    details: str = Field(description="details of the feedback")
+    sentiment: str = Field(description="sentiment of the feedback <positive/negative/netural>")
+    keywords: list[str] = Field(description='keywords in the feedback ["keyword1", "keyword2", "keyword3", ...]')
+    ai_rating: str = Field(description="rating the feedback 1-5 1 being the worst 5 being the best")
+    rationale: str = Field(description="rationale for the rating and sentiment")
+
+
+def make_default_identify_categories(valid_categories, when_to_use_category_map):
+    class IdentifyCategories(dspy.Signature):
+        """You are a customer feedback analyst. Your oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to extract meaning from the customer reviews. Make sure when asked for json you start with { and end with }"""
+
+        feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
+        categories = dspy.OutputField(desc="the categories of the feedback. one of: " + ", ".join(valid_categories) + f" and here is when to use each category {str(when_to_use_category_map)}. Respond with catchalldetails if not related to any of the categories. You can pick multiple categories and respond with a comma separated list.")
+        rationale = dspy.OutputField(desc="rationale for picking the categories explain step by step")
+        
+    return IdentifyCategories
+
+class DefaultBaseCategorize(dspy.Signature):
+    """You are a customer feedback analyst. Your oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to extract meaning from the customer reviews. Make sure when asked for json you start with { and end with }"""
+
+    feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
+    rating = dspy.InputField(desc="use this for the connotation of the feedback. the scale ranges from 1 - 5. 1 being horrible 5 being great")
+
+
+def get_analyzer(df: pd.DataFrame, 
+                 language_model, 
+                 identify_catagories_signature = None, 
+                 base_categorize_signature = None, 
+                 catch_all_details_signature = None):
     dspy.settings.configure(lm=language_model)
     valid_responses = get_valid_responses_for_categories(df) 
     print(valid_responses)
     when = get_when_to_use_category(df) 
     print(when)
 
-    class IdentifyCategories(dspy.Signature):
-        """You are a customer feedback analyst. Your work at a large shoe store retailer and oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to identify which categories the feedback is about."""
-        feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
-        categories = dspy.OutputField(desc="the categories of the feedback. one of: " + ", ".join(valid_responses) + f" and here is when to use each category {str(when)}. Respond with catchalldetails if not related to any of the categories. You can pick multiple categories and respond with a comma separated list.")
-        rationale = dspy.OutputField(desc="rationale for picking the categories explain step by step")
+    IdentifyCategories = identify_catagories_signature or make_default_identify_categories(valid_responses, when)
 
-
-
-    class CatchAllDetails(BaseModel):
-        details: str = Field(description="details of the feedback")
-        sentiment: str = Field(description="sentiment of the feedback <positive/negative/netural>")
-        keywords: list[str] = Field(description='keywords in the feedback ["keyword1", "keyword2", "keyword3", ...]')
-        ai_rating: str = Field(description="rating the feedback 1-5 1 being the worst 5 being the best")
-        rationale: str = Field(description="rationale for the rating and sentiment")
-
+    CatchAllDetails = catch_all_details_signature or DefaultCatchAllDetails
 
     list_validators = {
         "keywords": lambda x: json.loads(x)
@@ -100,18 +117,7 @@ def get_analyzer(df: pd.DataFrame, language_model):
             return ["catchalldetails"]
         return cats
         
-    # identified_categories = identified_categories_to_categoriy_signature(prediction)
-
-
-
-    class Categorize(dspy.Signature):
-
-        """You are a customer feedback analyst. Your work at shoe store retailer and oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal
-        is to extract meaning from the customer reviews. Make sure the output is valid json. Make sure
-        the output starts with { and ends with }."""
-
-        feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
-        rating = dspy.InputField(desc="use this for the connotation of the feedback. the scale ranges from 1 - 5. 1 being horrible 5 being great")
+    Categorize = base_categorize_signature or DefaultBaseCategorize
 
     def create_dynamic_typed_predictor(df, valid_categories):
         Breakdown = data_list_to_category_models(df, valid_categories)
