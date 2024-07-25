@@ -153,7 +153,15 @@ while unanalyzed_records_ct > 0:
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC UPDATE main.sri_winedb.reviews_predictions set analysis = null where analysis:category_breakdown:error is not null;
+# MAGIC -- Failures in the analysis column
+# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions
+# MAGIC WHERE analysis:category_breakdown:error is not null;
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC -- RESET EVERYTHING TO REPROCESS
+# MAGIC -- UPDATE main.sri_winedb.reviews_predictions set analysis = null where analysis:category_breakdown:error is not null;
 
 # COMMAND ----------
 
