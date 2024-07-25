@@ -32,16 +32,23 @@ class Domain(BaseModel):
     def with_additional_info(self, item_name: str, item_description: str):
         self.extras.append(DomainExtras(item_name=item_name, item_description=item_description))
         return self
-
-    def to_row(self):
+    
+    @staticmethod
+    def serialization_key():
+        return "serialized"
+    
+    def to_kwargs(self):
         current_data = self.dict()
         current_data.pop("extras")
         for v in self.extras:
             current_data[v.item_name] = v.item_description.format(topic=self.topic)
+        current_data["raw"] = json.dumps(current_data)
+        return current_data
 
+    def to_row(self):
         return {
             "topic": self.topic,
-            "raw": json.dumps(current_data)
+            self.serialization_key(): self.dict(),
         }
 
 
@@ -52,14 +59,14 @@ class DomainConfigTable(BaseModel):
     topics: List[Domain] = Field(default_factory=list)
 
     def with_topic(self, topic: Domain):
-        self.columns.append(topic)
+        self.topics.append(topic)
         return self
 
     def create_table_statement(self):
         return f"CREATE TABLE IF NOT EXISTS {self.catalog}.{self.schema}.{self.table} (topic STRING, raw STRING);"
 
     def insert_statements(self) -> list[str]:
-        return [f"INSERT INTO {self.catalog}.{self.schema}.{self.table} VALUES ('{topic.topic}', '{topic.to_row()}');"
+        return [f"INSERT INTO {self.catalog}.{self.schema}.{self.table} VALUES ('{topic.topic}', '{json.dumps(topic.to_row())}');"
                 for topic in self.topics]
 
     def truncate_statement(self):
@@ -70,7 +77,7 @@ class DomainConfigTable(BaseModel):
         rows = spark.table(f"{catalog}.{schema}.{table}").collect()
         topics = []
         for row in rows:
-            topic = Domain(**json.loads(row.raw))
+            topic = Domain(**json.loads(row.raw)[Domain.serialization_key()])
             topics.append(topic)
         return cls(catalog=catalog, schema=schema, table=table, topics=topics)
 
