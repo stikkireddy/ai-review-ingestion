@@ -65,6 +65,12 @@ dct.with_topic(
   ).with_additional_info(
     item_name="genre",
     item_description="the genre of the movie"
+  ).with_additional_info(
+    item_name="audio_issues",
+    item_description="were there audio quality issues <yes/no>"
+  ).with_additional_info(
+    item_name="audio_issues",
+    item_description="were there audio quality issues <yes/no>"
   )
 )
 

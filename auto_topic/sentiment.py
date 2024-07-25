@@ -118,7 +118,7 @@ def get_analyzer(df: pd.DataFrame, language_model):
 
         DynamicCategorize = create_model(
             'DynamicCategorize',
-            breakdown=(Breakdown, dspy.OutputField(desc="fill in the relevant fields and put null for the non relevant fields")),
+            breakdown=(Breakdown, dspy.OutputField(desc="fill in all the fields appropriately", prefix="breakdown")),
             __base__=Categorize
         )
 

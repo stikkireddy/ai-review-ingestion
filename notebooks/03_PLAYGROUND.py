@@ -32,7 +32,7 @@ language_model = dspy.OpenAI(
     api_key=TOKEN,
     api_base="https://e2-demo-field-eng.cloud.databricks.com/serving-endpoints/"
 )
-topics_df = pd.DataFrame([topic.to_row()["kwargs"] for topic in dct.topics])
+topics_df = pd.DataFrame([topic.to_kwargs() for topic in dct.topics])
 analyze = get_analyzer(topics_df, language_model)
 
 # COMMAND ----------
