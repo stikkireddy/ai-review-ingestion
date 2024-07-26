@@ -69,10 +69,11 @@ dct.with_topic(
     item_name="audio_issues",
     item_description="were there audio quality issues <yes/no>"
   ).with_additional_info(
-    item_name="audio_issues",
-    item_description="were there audio quality issues <yes/no>"
+    item_name="video_quality_issues",
+    item_description="were there video quality issues <yes/no>"
   )
 )
+
 
 # COMMAND ----------
 
