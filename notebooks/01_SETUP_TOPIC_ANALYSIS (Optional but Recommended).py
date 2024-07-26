@@ -1,5 +1,6 @@
 # Databricks notebook source
 # MAGIC %pip install bertopic
+# MAGIC %pip install --upgrade openai
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------

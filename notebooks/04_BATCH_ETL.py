@@ -89,10 +89,8 @@ else:
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC
-# MAGIC -- seed reviews
-# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions;
+# seed reviews
+display(spark.sql(f"SELECT * FROM {CATALOG}.{SCHEMA}.{TARGET_TABLE};"))
 
 # COMMAND ----------
 
@@ -109,8 +107,7 @@ target_table.alias("target").merge(
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC DESCRIBE HISTORY main.sri_winedb.reviews_predictions;
+display(spark.sql(f"DESCRIBE HISTORY {CATALOG}.{SCHEMA}.{TARGET_TABLE};"))
 
 # COMMAND ----------
 
@@ -146,23 +143,24 @@ while unanalyzed_records_ct > 0:
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions
-# MAGIC WHERE analysis is not null;
+display(spark.sql(f"""
+SELECT * FROM {CATALOG}.{SCHEMA}.{TARGET_TABLE}
+WHERE analysis is not null;
+"""))
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC -- Failures in the analysis column
-# MAGIC SELECT * FROM main.sri_winedb.reviews_predictions
-# MAGIC WHERE analysis:category_breakdown:error is not null;
+# Failures in the analysis column
+display(spark.sql(f"""
+SELECT * FROM {CATALOG}.{SCHEMA}.{TARGET_TABLE}
+WHERE analysis:category_breakdown:error is not null;
+"""))
 
 # COMMAND ----------
 
-# MAGIC %sql
-# MAGIC -- RESET EVERYTHING TO REPROCESS
-# MAGIC -- UPDATE main.sri_winedb.reviews_predictions set analysis = null where analysis:category_breakdown:error is not null;
-
-# COMMAND ----------
-
-
+# RESET EVERYTHING TO REPROCESS
+# spark.sql(f"""
+# UPDATE {CATALOG}.{SCHEMA}.{TARGET_TABLE} 
+# SET analysis = null 
+# WHERE analysis:category_breakdown:error is not null;
+# """)
