@@ -75,6 +75,7 @@ print("Total count of records", indexer.get_total_by())
 
 import solara
 import solara.lab
+import re
 
 # Declare reactive variables at the top level. Components using these variables
 # will be re-executed when their values change.
@@ -83,8 +84,6 @@ sentence = solara.reactive(DEFAULT)
 result_limit = solara.reactive(10)
 brands =  ["All Brands"] + spark.sql(f"SELECT distinct brand from {CATALOG}.{SCHEMA}.{REVIEWS_TABLE}").toPandas()["brand"].tolist()
 selected_brand = solara.reactive("All Brands")
-
-import re
 
 def highlight_text(input_string, query_string):
     """
@@ -121,13 +120,17 @@ def Page():
         condition = None
         
     if DEFAULT != sentence.value:
+        pattern = r'[^a-zA-Z0-9 ]'
+        cleaned_sentence_value = re.sub(pattern, '', sentence.value)
+
         total_ct = indexer.get_total_by(conditions=condition)
-        txt_res = indexer.text_query_by(sentence.value, condition, select=["brand", "review", "review_id"])
-        vec_res = indexer.vector_query_by(sentence.value, get_embedding, condition, select=["brand", "review", "review_id"], threshold=0.7)
+        txt_res = indexer.text_query_by(cleaned_sentence_value, condition, select=["brand", "review", "review_id"])
+        vec_res = indexer.vector_query_by(cleaned_sentence_value, get_embedding, condition, select=["brand", "review", "review_id"], threshold=0.7)
 
         solara.HTML(tag="div", unsafe_innerHTML=f"""
                     <ul>
-                        <li> Searched for: {sentence.value} </li>
+                        <li> Raw Search for: {sentence.value} </li>
+                        <li> Cleaned Search for: {cleaned_sentence_value} </li>
                         <li> Total Records: {total_ct} </li>
                         <li> Total Txt Results: {len(txt_res)} </li>
                         <li> Total Semantic Results: {len(vec_res)} </li>
@@ -136,7 +139,7 @@ def Page():
         
         with solara.lab.Tabs():
             with solara.lab.Tab("Text Query Results"):
-                query_res_str = "\n".join([f'<li> {txt["review_id"]} - {highlight_text(txt["review"], sentence.value)} </li>' for txt in txt_res[:min(result_limit.value, len(txt_res))]])
+                query_res_str = "\n".join([f'<li> {txt["review_id"]} - {highlight_text(txt["review"], cleaned_sentence_value)} </li>' for txt in txt_res[:min(result_limit.value, len(txt_res))]])
                 solara.HTML(tag="div", unsafe_innerHTML=f"""
                             <h3> Text Query Results (Max Results {result_limit.value}) </h3>
                             <ul>
@@ -145,7 +148,7 @@ def Page():
                             """)
 
             with solara.lab.Tab("Semantic"):
-                query_res_str = "\n".join([f'<li> {txt["review_id"]} - {highlight_text(txt["review"], sentence.value)} </li>' for txt in vec_res[:min(result_limit.value, len(vec_res))]])
+                query_res_str = "\n".join([f'<li> {txt["review_id"]} - {highlight_text(txt["review"], cleaned_sentence_value)} </li>' for txt in vec_res[:min(result_limit.value, len(vec_res))]])
                 solara.HTML(tag="div", unsafe_innerHTML=f"""
                             <h3> Semantic Similarity Query Results (Max Results {result_limit.value}) </h3>
                             <ul>

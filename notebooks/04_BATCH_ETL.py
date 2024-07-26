@@ -37,7 +37,7 @@ from typing import Iterator, Tuple
 def extract_domain_details(feedback_and_ratings: Iterator[Tuple[pd.Series, pd.Series]]) -> Iterator[pd.Series]:
     # Do some expensive initialization with a state
     language_model = dspy.OpenAI(
-        model=MODEL_ID, # model='databricks-dbrx-instruct',
+        model=MODEL_ID,
         max_tokens=500,
         temperature=0.1,
         api_key=TOKEN,
@@ -111,8 +111,20 @@ display(spark.sql(f"DESCRIBE HISTORY {CATALOG}.{SCHEMA}.{TARGET_TABLE};"))
 
 # COMMAND ----------
 
-from delta.tables import DeltaTable
+# MAGIC %md
+# MAGIC
+# MAGIC # ETL Logic
+# MAGIC
+# MAGIC 1. Identify unanalyzed columns (where analysis is null)
+# MAGIC 2. Then chunk the amount of rows to process via BATCH_ETL_BATCH_SIZE and then commit the transaction via a merge.
+# MAGIC 3. Repeat till the analysis columns are not null
+# MAGIC
+# MAGIC
+# MAGIC If there are 1000 null records and BATCH_ETL_BATCH_SIZE=500 you will have 2 transcations made to the table. 
 
+# COMMAND ----------
+
+from delta.tables import DeltaTable
 
 def get_unanalyzed_records(spark, batch_size = None):
     if batch_size is None:
@@ -143,10 +155,26 @@ while unanalyzed_records_ct > 0:
 
 # COMMAND ----------
 
+# MAGIC %md
+# MAGIC
+# MAGIC ## Identify Processed Data
+# MAGIC
+# MAGIC Select data that has been analyzed already
+
+# COMMAND ----------
+
 display(spark.sql(f"""
 SELECT * FROM {CATALOG}.{SCHEMA}.{TARGET_TABLE}
 WHERE analysis is not null;
 """))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## Reprocess Data
+# MAGIC
+# MAGIC Identify failed analysis tables by looking for `WHERE analysis:category_breakdown:error is not null`
 
 # COMMAND ----------
 
@@ -155,6 +183,14 @@ display(spark.sql(f"""
 SELECT * FROM {CATALOG}.{SCHEMA}.{TARGET_TABLE}
 WHERE analysis:category_breakdown:error is not null;
 """))
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## Reprocess Data
+# MAGIC
+# MAGIC Set the analysis columns to null to have this notebook reprocess them.
 
 # COMMAND ----------
 

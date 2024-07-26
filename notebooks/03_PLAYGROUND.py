@@ -1,5 +1,6 @@
 # Databricks notebook source
-# MAGIC %pip install -U openai pandas dbtunnel[gradio] dspy-ai pydantic
+# MAGIC %pip install -U openai 
+# MAGIC %pip install dbtunnel[gradio] dspy-ai pydantic
 # MAGIC %pip install arize-otel openai openinference-instrumentation-openai opentelemetry-sdk openinference-instrumentation-dspy opentelemetry-exporter-otlp
 # MAGIC dbutils.library.restartPython()
 
@@ -12,6 +13,14 @@
 from auto_topic.domains import DomainConfigTable
 from auto_topic.sentiment import get_analyzer, enable_arize_tracing, get_valid_responses_for_categories, get_when_to_use_category
 import pandas as pd
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC
+# MAGIC ## Enable tracing with arize UI
+# MAGIC
+# MAGIC If you do not need tracing at the llm call level comment out the following cell otherwise you need to make sure you are running the 00_TRACING notebook.
 
 # COMMAND ----------
 
@@ -37,20 +46,8 @@ topics_df = pd.DataFrame([topic.to_kwargs() for topic in dct.topics])
 valid_categories = get_valid_responses_for_categories(topics_df)
 when = get_when_to_use_category(topics_df) 
 
-class IdentifyCategories(dspy.Signature):
-    """You are a customer feedback analyst. Your work at online retailer and oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to extract meaning from the customer reviews. Make sure when asked for json you start with { and end with }"""
-
-    feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
-    categories = dspy.OutputField(desc="the categories of the feedback. one of: " + ", ".join(valid_categories) + f" and here is when to use each category {str(when)}. Respond with catchalldetails if not related to any of the categories. You can pick multiple categories and respond with a comma separated list.")
-    rationale = dspy.OutputField(desc="rationale for picking the categories explain step by step")
-
-class Categorize(dspy.Signature):
-    """You are a customer feedback analyst. Your work at online retailer and oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to extract meaning from the customer reviews. Make sure when asked for json you start with { and end with }"""
-
-    feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
-    rating = dspy.InputField(desc="use this for the connotation of the feedback. the scale ranges from 1 - 5. 1 being horrible 5 being great")
-
-analyze = get_analyzer(topics_df, language_model, IdentifyCategories, Categorize)
+# Look through the code to get more customization here
+analyze = get_analyzer(topics_df, language_model)
 
 # COMMAND ----------
 

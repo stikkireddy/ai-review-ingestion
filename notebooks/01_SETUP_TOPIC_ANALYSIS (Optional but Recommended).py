@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %pip install bertopic
-# MAGIC %pip install --upgrade openai
+# MAGIC %pip install -U openai
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -20,11 +20,16 @@ all_reviews = reviews_df["review"].tolist()
 from bertopic import BERTopic
 from bertopic.representation import KeyBERTInspired
 
+# You can bootstrap with basic topics that you may want to pull
+# Try picking relevant topics that you want your data clustered to
+# you can also split up the parent review into sentence chunks and associate sentences to topics to be able to map a single review to one of these topics
 zeroshot_topic_list = ["Good Movie", "Bad Movie", "Good Game", "Bad Game", "Other", "Defect Issues Not Working", "Gifts"]
 
 # Reference: https://maartengr.github.io/BERTopic/getting_started/zeroshot/zeroshot.html#example
+# if you are doing this with a lot of data you may want to use a gpu to use the embedding model otherwise 
+# this can run for a while
 topic_model = BERTopic(
-    embedding_model="thenlper/gte-large", 
+    embedding_model="thenlper/gte-large", # use thenlper/gte-small if you want this to run fast
     min_topic_size=15,
     zeroshot_topic_list=zeroshot_topic_list,
     zeroshot_min_similarity=.75,
