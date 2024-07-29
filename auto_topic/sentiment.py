@@ -256,7 +256,7 @@ def _error_view_generator(*, catalog: str,
     CREATE OR REPLACE VIEW {catalog}.{schema}.{view_prefix}errors AS
     SELECT {primary_key_col_name}, 
         {analysis_column_name}:{top_level_key}:error as error_details
-    FROM {analysis_table}
+    FROM {catalog}.{schema}.{analysis_table}
     WHERE {analysis_column_name}:{top_level_key}:error is not null;
     """
 
