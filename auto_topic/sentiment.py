@@ -178,7 +178,7 @@ def _analysis_domain_views_generator(*,
                                      schema: str,
                                      analysis_table: str,
                                      primary_key_col_name: str,
-                                     domain_config_table: DomainConfigTable,
+                                     domain_config_table: "DomainConfigTable",
                                      analysis_column_name="analysis",
                                      top_level_key="category_breakdown",
                                      view_prefix="analysis_"):
