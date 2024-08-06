@@ -65,6 +65,10 @@ final_data[0]
 
 from auto_topic.index import Indexer
 indexer = Indexer("reviews_index", f"{VOLUME_BASE_PATH}/indexes/reviews")
+
+
+# COMMAND ----------
+
 indexer.publish_index(final_data)
 
 # COMMAND ----------

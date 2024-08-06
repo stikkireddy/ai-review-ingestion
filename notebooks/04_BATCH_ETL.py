@@ -9,7 +9,7 @@
 # COMMAND ----------
 
 from auto_topic.domains import DomainConfigTable
-from auto_topic.sentiment import get_analyzer, enable_arize_tracing, get_valid_responses_for_categories, get_when_to_use_category
+from auto_topic.sentiment import get_analyzer, enable_arize_tracing, get_valid_responses_for_categories, get_when_to_use_category, build_analysis_views
 import pandas as pd
 
 # COMMAND ----------
@@ -156,6 +156,28 @@ while unanalyzed_records_ct > 0:
 # COMMAND ----------
 
 # MAGIC %md
+# MAGIC ## Generate Analysis Views
+# MAGIC
+# MAGIC Build views to analyze data along with comments. These tables can be used for genie data room
+
+# COMMAND ----------
+
+build_analysis_views(
+    spark=spark,
+    catalog=CATALOG,
+    schema=SCHEMA,
+    analysis_table=TARGET_TABLE, 
+    primary_key_col_name="review_id", 
+    domain_config_table=dct
+)
+
+# COMMAND ----------
+
+spark.sql(f"SHOW TABLES IN {CATALOG}.{SCHEMA}").display()
+
+# COMMAND ----------
+
+# MAGIC %md
 # MAGIC
 # MAGIC ## Identify Processed Data
 # MAGIC
@@ -172,7 +194,7 @@ WHERE analysis is not null;
 
 # MAGIC %md
 # MAGIC
-# MAGIC ## Reprocess Data
+# MAGIC ## Identify errors
 # MAGIC
 # MAGIC Identify failed analysis tables by looking for `WHERE analysis:category_breakdown:error is not null`
 
