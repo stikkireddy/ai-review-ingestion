@@ -1,6 +1,6 @@
 import copy
 import json
-from typing import Optional
+from typing import Optional, Union
 
 import dspy
 import pandas as pd
@@ -40,19 +40,29 @@ def get_when_to_use_category(df: pd.DataFrame):
 class DefaultCatchAllDetails(BaseModel):
     details: str = Field(description="details of the feedback")
     sentiment: str = Field(description="sentiment of the feedback <positive/negative/neutral/mixed>")
-    keywords: list[str] = Field(description='keywords in the feedback ["keyword1", "keyword2", "keyword3", ...]')
-    ai_rating: str = Field(description="rating the feedback 1-5 1 being the worst 5 being the best")
+    keywords: str = Field(description='keywords in the feedback ["keyword1", "keyword2", "keyword3", ...]. This should be a valid list of strings.')
+    ai_rating: Union[str, int] = Field(description="rating the feedback 1-5 1 being the worst 5 being the best. this should be a string")
     rationale: str = Field(description="rationale for the rating and sentiment")
 
 
 def make_default_identify_categories(valid_categories, when_to_use_category_map):
+    from typing import List
+
+    class Categories(BaseModel):
+        categories: List[str] = Field(description="the categories of the feedback. any of: " + ", ".join(
+            valid_categories) + f" and here is when to use each category {str(when_to_use_category_map)}. Respond with catchalldetails if not related to any of the categories. This should be returned as a list.")
+        rationale: str = Field(description="rationale for picking the categories explain step by step")
+        
+
     class IdentifyCategories(dspy.Signature):
         """You are a customer feedback analyst. Your oversee customer feedback across all channels, such as website, social media, in store reviews, customer reviews via email and your goal is to extract meaning from the customer reviews. Make sure when asked for json you start with { and end with }"""
 
         feedback = dspy.InputField(desc="a review from a customer. this can be a positive or negative review")
-        categories = dspy.OutputField(desc="the categories of the feedback. one of: " + ", ".join(
-            valid_categories) + f" and here is when to use each category {str(when_to_use_category_map)}. Respond with catchalldetails if not related to any of the categories. You can pick multiple categories and respond with a comma separated list.")
-        rationale = dspy.OutputField(desc="rationale for picking the categories explain step by step")
+        breakdown: Categories = dspy.OutputField(desc="breakdown of the feedback into categories", prefix="Breakdown:")
+        # categories: List[CategoriesType] = dspy.OutputField(desc="the categories of the feedback. one of: " + ", ".join(
+        #     valid_categories) + f" and here is when to use each category {str(when_to_use_category_map)}. Respond with catchalldetails if not related to any of the categories. You can pick multiple categories and respond with a comma separated list. Example response: websitedetails,customerreviews",
+        #                                                     prefix="Categories:")
+        # rationale: str = dspy.OutputField(desc="rationale for picking the categories explain step by step", prefix="Rationale:")
 
     return IdentifyCategories
 
@@ -116,7 +126,10 @@ def get_analyzer(df: pd.DataFrame,
                             __base__=BaseModel)
 
     def identified_categories_to_categoriy_signature(prediction):
-        cats = [cat.strip() for cat in prediction.categories.split(",")]
+        if isinstance(prediction.breakdown.categories, list):
+            cats = prediction.breakdown.categories
+        else:
+            cats = [cat.strip() for cat in prediction.categories.split(",")]
         cats = [cat for cat in cats if cat in valid_responses + ["catchalldetails"]]
         if len(cats) == 0:
             return ["catchalldetails"]
@@ -147,11 +160,11 @@ def get_analyzer(df: pd.DataFrame,
 
         def __init__(self, valid_categories_df: pd.DataFrame):
             self.valid_categories_df = valid_categories_df
-            self.identify = dspy.ChainOfThought(IdentifyCategories)
+            self.identify = dspy.TypedPredictor(IdentifyCategories)
 
         def forward(self, feedback: str, rating: str):
             predict_categories = self.identify(feedback=feedback)
-            categories = predict_categories.categories
+            categories = predict_categories.breakdown.categories
             print("output categories", categories)
             valid_categories = identified_categories_to_categoriy_signature(predict_categories)
             print("valid categories", valid_categories)
@@ -160,14 +173,14 @@ def get_analyzer(df: pd.DataFrame,
                 prediction = fill_categories(feedback=feedback, rating=rating)
                 return dspy.Prediction(
                     breakdown=prediction.breakdown,
-                    category_selection_rationale=predict_categories.rationale,
-                    category_selection=predict_categories.categories
+                    category_selection_rationale=predict_categories.breakdown.rationale,
+                    category_selection=predict_categories.breakdown.categories
                 )
             except Exception as e:
                 return dspy.Prediction(
                     breakdown=Error(str(e)),
-                    category_selection_rationale=predict_categories.rationale,
-                    category_selection=predict_categories.categories
+                    category_selection_rationale=predict_categories.breakdown.rationale,
+                    category_selection=predict_categories.breakdown.categories
                 )
 
     return FeedbackAnalysis(df)

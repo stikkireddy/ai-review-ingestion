@@ -1,7 +1,7 @@
 # Databricks notebook source
 # MAGIC %pip install -U openai 
 # MAGIC %pip install dbtunnel[gradio] dspy-ai pydantic
-# MAGIC %pip install arize-otel openai openinference-instrumentation-openai opentelemetry-sdk openinference-instrumentation-dspy opentelemetry-exporter-otlp
+# MAGIC %pip install arize-otel==0.3.1 openai openinference-instrumentation-openai opentelemetry-sdk openinference-instrumentation-dspy opentelemetry-exporter-otlp
 # MAGIC dbutils.library.restartPython()
 
 # COMMAND ----------
@@ -59,6 +59,10 @@ def extract(feedback, value):
                   "category_selection_rationale": resp.category_selection_rationale,
                   "all_categories": valid_categories}
     return final_resp
+
+# COMMAND ----------
+
+spark.table(f"{CATALOG}.{SCHEMA}.{REVIEWS_TABLE}").display()
 
 # COMMAND ----------
 

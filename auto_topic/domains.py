@@ -14,7 +14,7 @@ class Domain(BaseModel):
     when: str
     details: str
     sentiment: str = "<positive/negative/mixed/neutral>"
-    keywords: str = "<keyword1>,<keyword2>,..."
+    keywords: str = "[<keyword1>,<keyword2>,...] should be a valid list of strings"
     ai_rating: Optional[str] = "generate a rating between <1-5/null> based on feedback with regards to {topic}"
     rationale: str = "explain your thoughts step by step on why you arrived at the conclusion with regards to {topic}"
     extras: List[DomainExtras] = Field(default_factory=list)
@@ -85,5 +85,6 @@ class DomainConfigTable(BaseModel):
         spark.sql(self.create_table_statement())
         spark.sql(self.truncate_statement())
         for insert_statement in self.insert_statements():
+            print("Running insert statement: ", insert_statement)
             spark.sql(insert_statement)
         return self
