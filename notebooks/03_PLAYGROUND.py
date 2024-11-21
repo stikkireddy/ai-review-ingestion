@@ -1,6 +1,6 @@
 # Databricks notebook source
 # MAGIC %pip install -U openai 
-# MAGIC %pip install dbtunnel[gradio] dspy-ai pydantic
+# MAGIC %pip install dbtunnel[gradio] dspy-ai==2.5.29 pydantic
 # MAGIC %pip install arize-otel==0.3.1 openai openinference-instrumentation-openai opentelemetry-sdk openinference-instrumentation-dspy opentelemetry-exporter-otlp
 # MAGIC dbutils.library.restartPython()
 
@@ -33,13 +33,16 @@ dct = DomainConfigTable.from_table(spark, catalog=CATALOG, schema=SCHEMA, table=
 # COMMAND ----------
 
 import dspy
-TOKEN = dbutils.notebook.entry_point.getDbutils().notebook().getContext().apiToken().getOrElse(None)
-language_model = dspy.OpenAI(
-    model=MODEL_ID, # model='databricks-dbrx-instruct',
-    max_tokens=500,
-    temperature=0.1,
-    api_key=TOKEN,
-    api_base=f"{WORKSPACE_URL}/serving-endpoints/"
+import os
+
+
+# configure these if you have the model in another workspace
+# os.environ["DATABRICKS_API_BASE"] = ""
+# os.environ["DATABRICKS_API_KEY"] = ""
+# the model should always be "databricks/<endpoint name>"
+language_model = dspy.LM(
+    f'databricks/{MODEL_ID}',
+     cache=False,
 )
 
 topics_df = pd.DataFrame([topic.to_kwargs() for topic in dct.topics])
